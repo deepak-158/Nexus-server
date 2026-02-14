@@ -13,17 +13,17 @@ console.log('[Email] Configured with user:', GMAIL_USER);
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    family: 4,          // Force IPv4 — Render doesn't support IPv6 outbound
     auth: {
         user: GMAIL_USER,
         pass: GMAIL_APP_PASSWORD
     },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
-    socketTimeout: 20000,
-    logger: true,
-    debug: true
+    socketTimeout: 20000
 });
 
 // Verify SMTP connection on startup

@@ -53,6 +53,14 @@ async function start() {
     });
 }
 
+// Global error handlers for cloud deployment reliability
+process.on('uncaughtException', (err) => {
+    console.error('[Server] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (err) => {
+    console.error('[Server] Unhandled rejection:', err);
+});
+
 start().catch(err => {
     console.error('[Server] Failed to start:', err);
     process.exit(1);

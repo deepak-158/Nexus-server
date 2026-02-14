@@ -13,7 +13,13 @@ const DB_PATH = path.join(__dirname, 'browser.db');
 let db = null;
 
 async function initDB() {
-    const SQL = await initSqlJs();
+    // Locate WASM file explicitly for cloud environments (Render, etc.)
+    const wasmPath = path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm');
+    let sqlConfig = {};
+    if (fs.existsSync(wasmPath)) {
+        sqlConfig = { locateFile: () => wasmPath };
+    }
+    const SQL = await initSqlJs(sqlConfig);
 
     if (fs.existsSync(DB_PATH)) {
         const buffer = fs.readFileSync(DB_PATH);

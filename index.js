@@ -32,7 +32,15 @@ async function start() {
 
     // Health check
     app.get('/health', (req, res) => {
-        res.json({ status: 'ok', timestamp: new Date().toISOString() });
+        res.json({
+            status: 'ok',
+            timestamp: new Date().toISOString(),
+            env: {
+                GMAIL_USER: process.env.GMAIL_USER ? `${process.env.GMAIL_USER.substring(0, 4)}...` : 'NOT SET (using fallback)',
+                GMAIL_APP_PASSWORD: process.env.GMAIL_APP_PASSWORD ? 'SET' : 'NOT SET (using fallback)',
+                JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'NOT SET (using fallback)'
+            }
+        });
     });
 
     // Root endpoint

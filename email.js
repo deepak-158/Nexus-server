@@ -1,68 +1,64 @@
 /**
  * Nexus Browser — Email Module
- * Handles sending emails via Gmail SMTP using nodemailer.
- * Used for welcome emails, password resets, etc.
+ * Uses Brevo (Sendinblue) HTTP API for sending emails.
+ * Render's free tier blocks SMTP, so we use HTTPS-based API instead.
+ * 
+ * Setup: Get a free API key at https://app.brevo.com
+ * Then add BREVO_API_KEY as an environment variable on Render.
  */
 
-const nodemailer = require('nodemailer');
-const dns = require('dns');
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const SENDER_EMAIL = process.env.GMAIL_USER || 'deepakshukla1508.i@gmail.com';
+const SENDER_NAME = 'Nexus Browser';
 
-const GMAIL_USER = process.env.GMAIL_USER || 'deepakshukla1508.i@gmail.com';
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'luwt oehw akox secn';
-
-console.log('[Email] Configured with user:', GMAIL_USER);
-
-// Force all DNS lookups to IPv4 to avoid Render's IPv6 issues
-const ipv4Lookup = (hostname, options, callback) => {
-    dns.resolve4(hostname, (err, addresses) => {
-        if (err) return callback(err);
-        callback(null, addresses[0], 4);
-    });
-};
-
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD
-    },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-    dnsTimeout: 10000,
-    customTransport: false,
-    tls: {
-        rejectUnauthorized: true
-    },
-    // Force IPv4 DNS resolution
-    lookup: ipv4Lookup
-});
-
-// Verify SMTP connection on startup
-transporter.verify()
-    .then(() => console.log('[Email] SMTP connection verified successfully'))
-    .catch(err => console.error('[Email] SMTP verification FAILED:', err.message));
-
-// Wrapper to prevent hanging if email sending takes too long
-function sendWithTimeout(mailOptions, timeoutMs = 20000) {
-    return Promise.race([
-        transporter.sendMail(mailOptions),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Email send timed out')), timeoutMs))
-    ]);
-}
+console.log('[Email] Using Brevo HTTP API');
+console.log('[Email] BREVO_API_KEY:', BREVO_API_KEY ? 'SET' : 'NOT SET');
 
 /**
- * Send a welcome email to newly registered users.
+ * Send email via Brevo HTTP API (no SMTP needed)
  */
+async function sendEmail(to, subject, htmlContent) {
+    if (!BREVO_API_KEY) {
+        console.error('[Email] BREVO_API_KEY not set — cannot send email');
+        return false;
+    }
+
+    const payload = {
+        sender: { name: SENDER_NAME, email: SENDER_EMAIL },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: htmlContent
+    };
+
+    try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+                'accept': 'application/json',
+                'api-key': BREVO_API_KEY,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            console.log(`[Email] Sent to ${to}: ${subject}`);
+            return true;
+        } else {
+            const err = await response.json();
+            console.error(`[Email] Brevo API error (${response.status}):`, JSON.stringify(err));
+            return false;
+        }
+    } catch (err) {
+        console.error('[Email] Failed to send:', err.message);
+        return false;
+    }
+}
+
+// ── Email templates ──────────────────────────────────────
+
 async function sendWelcomeEmail(toEmail, userName) {
-    const mailOptions = {
-        from: `"Nexus Browser" <${GMAIL_USER}>`,
-        to: toEmail,
-        subject: '🚀 Welcome to Nexus Browser!',
-        html: `
+    const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -87,45 +83,29 @@ async function sendWelcomeEmail(toEmail, userName) {
       <div class="logo">Nexus</div>
     </div>
     <div class="body">
-      <h2>Welcome aboard, <span class="highlight">${userName}</span>! 🎉</h2>
+      <h2>Welcome aboard, <span class="highlight">${userName}</span>!</h2>
       <p>Your Nexus Browser account is ready. Here's what you can do:</p>
       <ul class="features">
-        <li>Browse the web with built-in privacy & security</li>
-        <li>Save & sync your passwords securely (AES-256 encrypted)</li>
+        <li>Browse the web with built-in privacy and security</li>
+        <li>Save and sync your passwords securely (AES-256 encrypted)</li>
         <li>Private/Incognito tabs with zero trace</li>
-        <li>Built-in notes, tasks & real-time messaging</li>
-        <li>Screenshot capture, Find in Page & more</li>
+        <li>Built-in notes, tasks and real-time messaging</li>
+        <li>Screenshot capture, Find in Page and more</li>
       </ul>
       <p>All your data stays separate and secure under your account.</p>
-      <p style="text-align:center;">
-        <a href="#" class="btn">Open Nexus Browser</a>
-      </p>
     </div>
     <div class="footer">
-      &copy; ${new Date().getFullYear()} Nexus Browser &middot; Built with ❤️
+      Nexus Browser ${new Date().getFullYear()}
     </div>
   </div>
 </body>
-</html>`
-    };
+</html>`;
 
-    try {
-        await sendWithTimeout(mailOptions);
-        console.log(`[Email] Welcome email sent to ${toEmail}`);
-    } catch (err) {
-        console.error('[Email] Failed to send welcome email:', err.message);
-    }
+    await sendEmail(toEmail, 'Welcome to Nexus Browser!', html);
 }
 
-/**
- * Send a password-reset email with a 6-digit code.
- */
 async function sendPasswordResetEmail(toEmail, userName, resetCode) {
-    const mailOptions = {
-        from: `"Nexus Browser" <${GMAIL_USER}>`,
-        to: toEmail,
-        subject: '🔑 Reset Your Nexus Password',
-        html: `
+    const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -154,35 +134,20 @@ async function sendPasswordResetEmail(toEmail, userName, resetCode) {
       <div class="code-box">
         <span class="code">${resetCode}</span>
       </div>
-      <p class="warning">⏳ This code expires in <strong>15 minutes</strong>.<br>If you didn't request this, you can safely ignore this email.</p>
+      <p class="warning">This code expires in 15 minutes. If you didn't request this, you can safely ignore this email.</p>
     </div>
     <div class="footer">
-      &copy; ${new Date().getFullYear()} Nexus Browser &middot; Built with ❤️
+      Nexus Browser ${new Date().getFullYear()}
     </div>
   </div>
 </body>
-</html>`
-    };
+</html>`;
 
-    try {
-        await sendWithTimeout(mailOptions);
-        console.log(`[Email] Password reset email sent to ${toEmail}`);
-        return true;
-    } catch (err) {
-        console.error('[Email] Failed to send reset email:', err.message);
-        return false;
-    }
+    return await sendEmail(toEmail, 'Reset Your Nexus Password', html);
 }
 
-/**
- * Send a registration OTP email to verify email before account creation.
- */
 async function sendRegistrationOTP(toEmail, userName, otpCode) {
-    const mailOptions = {
-        from: `"Nexus Browser" <${GMAIL_USER}>`,
-        to: toEmail,
-        subject: '🔐 Verify Your Email — Nexus Browser',
-        html: `
+    const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -211,24 +176,16 @@ async function sendRegistrationOTP(toEmail, userName, otpCode) {
       <div class="code-box">
         <span class="code">${otpCode}</span>
       </div>
-      <p class="warning">⏳ This code expires in <strong>15 minutes</strong>.<br>If you didn't create an account, you can safely ignore this email.</p>
+      <p class="warning">This code expires in 15 minutes. If you didn't create an account, you can safely ignore this email.</p>
     </div>
     <div class="footer">
-      &copy; ${new Date().getFullYear()} Nexus Browser &middot; Built with ❤️
+      Nexus Browser ${new Date().getFullYear()}
     </div>
   </div>
 </body>
-</html>`
-    };
+</html>`;
 
-    try {
-        await sendWithTimeout(mailOptions);
-        console.log(`[Email] Registration OTP sent to ${toEmail}`);
-        return true;
-    } catch (err) {
-        console.error('[Email] Failed to send registration OTP:', err.message);
-        return false;
-    }
+    return await sendEmail(toEmail, 'Verify Your Email - Nexus Browser', html);
 }
 
 module.exports = { sendWelcomeEmail, sendPasswordResetEmail, sendRegistrationOTP };

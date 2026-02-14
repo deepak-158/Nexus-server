@@ -9,13 +9,26 @@ const nodemailer = require('nodemailer');
 const GMAIL_USER = process.env.GMAIL_USER || 'deepakshukla1508.i@gmail.com';
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'luwt oehw akox secn';
 
+console.log('[Email] Configured with user:', GMAIL_USER);
+
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: GMAIL_USER,
         pass: GMAIL_APP_PASSWORD
-    }
+    },
+    connectionTimeout: 10000,  // 10s to establish connection
+    greetingTimeout: 10000,    // 10s for SMTP greeting
+    socketTimeout: 15000       // 15s for socket inactivity
 });
+
+// Wrapper to prevent hanging if email sending takes too long
+function sendWithTimeout(mailOptions, timeoutMs = 20000) {
+    return Promise.race([
+        transporter.sendMail(mailOptions),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Email send timed out')), timeoutMs))
+    ]);
+}
 
 /**
  * Send a welcome email to newly registered users.
@@ -73,7 +86,7 @@ async function sendWelcomeEmail(toEmail, userName) {
     };
 
     try {
-        await transporter.sendMail(mailOptions);
+        await sendWithTimeout(mailOptions);
         console.log(`[Email] Welcome email sent to ${toEmail}`);
     } catch (err) {
         console.error('[Email] Failed to send welcome email:', err.message);
@@ -128,7 +141,7 @@ async function sendPasswordResetEmail(toEmail, userName, resetCode) {
     };
 
     try {
-        await transporter.sendMail(mailOptions);
+        await sendWithTimeout(mailOptions);
         console.log(`[Email] Password reset email sent to ${toEmail}`);
         return true;
     } catch (err) {
@@ -185,7 +198,7 @@ async function sendRegistrationOTP(toEmail, userName, otpCode) {
     };
 
     try {
-        await transporter.sendMail(mailOptions);
+        await sendWithTimeout(mailOptions);
         console.log(`[Email] Registration OTP sent to ${toEmail}`);
         return true;
     } catch (err) {

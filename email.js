@@ -1,52 +1,47 @@
 /**
  * Nexus Browser — Email Module
- * Uses Brevo (Sendinblue) HTTP API for sending emails.
- * Render's free tier blocks SMTP, so we use HTTPS-based API instead.
- * 
- * Setup: Get a free API key at https://app.brevo.com
- * Then add BREVO_API_KEY as an environment variable on Render.
+ * Uses Resend HTTP API for sending emails.
+ * Free tier: 100 emails/day, reliable, no SMTP needed.
  */
 
-const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
-const SENDER_EMAIL = process.env.GMAIL_USER || 'deepakshukla1508.i@gmail.com';
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const SENDER_EMAIL = 'onboarding@resend.dev';  // Resend free tier default sender
 const SENDER_NAME = 'Nexus Browser';
 
-console.log('[Email] Using Brevo HTTP API');
-console.log('[Email] BREVO_API_KEY:', BREVO_API_KEY ? 'SET' : 'NOT SET');
+console.log('[Email] Using Resend HTTP API');
+console.log('[Email] RESEND_API_KEY:', RESEND_API_KEY ? 'SET' : 'NOT SET');
 
 /**
- * Send email via Brevo HTTP API (no SMTP needed)
+ * Send email via Resend HTTP API
  */
 async function sendEmail(to, subject, htmlContent) {
-    if (!BREVO_API_KEY) {
-        console.error('[Email] BREVO_API_KEY not set — cannot send email');
+    if (!RESEND_API_KEY) {
+        console.error('[Email] RESEND_API_KEY not set — cannot send email');
         return false;
     }
 
-    const payload = {
-        sender: { name: SENDER_NAME, email: SENDER_EMAIL },
-        to: [{ email: to }],
-        subject: subject,
-        htmlContent: htmlContent
-    };
-
     try {
-        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        const response = await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
-                'accept': 'application/json',
-                'api-key': BREVO_API_KEY,
-                'content-type': 'application/json'
+                'Authorization': `Bearer ${RESEND_API_KEY}`,
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+                to: [to],
+                subject: subject,
+                html: htmlContent
+            })
         });
 
         if (response.ok) {
-            console.log(`[Email] Sent to ${to}: ${subject}`);
+            const data = await response.json();
+            console.log(`[Email] Sent to ${to}: ${subject} (id: ${data.id})`);
             return true;
         } else {
             const err = await response.json();
-            console.error(`[Email] Brevo API error (${response.status}):`, JSON.stringify(err));
+            console.error(`[Email] Resend API error (${response.status}):`, JSON.stringify(err));
             return false;
         }
     } catch (err) {

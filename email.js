@@ -12,15 +12,24 @@ const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'luwt oehw akox sec
 console.log('[Email] Configured with user:', GMAIL_USER);
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: {
         user: GMAIL_USER,
         pass: GMAIL_APP_PASSWORD
     },
-    connectionTimeout: 10000,  // 10s to establish connection
-    greetingTimeout: 10000,    // 10s for SMTP greeting
-    socketTimeout: 15000       // 15s for socket inactivity
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+    logger: true,
+    debug: true
 });
+
+// Verify SMTP connection on startup
+transporter.verify()
+    .then(() => console.log('[Email] SMTP connection verified successfully'))
+    .catch(err => console.error('[Email] SMTP verification FAILED:', err.message));
 
 // Wrapper to prevent hanging if email sending takes too long
 function sendWithTimeout(mailOptions, timeoutMs = 20000) {

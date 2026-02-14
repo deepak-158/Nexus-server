@@ -5,25 +5,40 @@
  */
 
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 
 const GMAIL_USER = process.env.GMAIL_USER || 'deepakshukla1508.i@gmail.com';
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || 'luwt oehw akox secn';
 
 console.log('[Email] Configured with user:', GMAIL_USER);
 
+// Force all DNS lookups to IPv4 to avoid Render's IPv6 issues
+const ipv4Lookup = (hostname, options, callback) => {
+    dns.resolve4(hostname, (err, addresses) => {
+        if (err) return callback(err);
+        callback(null, addresses[0], 4);
+    });
+};
+
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
     secure: false,
     requireTLS: true,
-    family: 4,          // Force IPv4 — Render doesn't support IPv6 outbound
     auth: {
         user: GMAIL_USER,
         pass: GMAIL_APP_PASSWORD
     },
     connectionTimeout: 15000,
     greetingTimeout: 15000,
-    socketTimeout: 20000
+    socketTimeout: 20000,
+    dnsTimeout: 10000,
+    customTransport: false,
+    tls: {
+        rejectUnauthorized: true
+    },
+    // Force IPv4 DNS resolution
+    lookup: ipv4Lookup
 });
 
 // Verify SMTP connection on startup
